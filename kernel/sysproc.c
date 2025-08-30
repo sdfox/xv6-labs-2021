@@ -81,7 +81,31 @@ int
 sys_pgaccess(void)
 {
   // lab pgtbl: your code here.
-  return 0;
+  uint64 base, mask;
+  int len, buf = 0;
+  pte_t *pte;
+  pagetable_t pagetable = myproc()->pagetable;
+
+  // get system call args
+  if(argaddr(0, &base) < 0 || argint(1, &len) < 0 || argaddr(2, &mask) < 0)
+    return -1;
+  // set a max len
+  if(len > 128)
+    return -1;
+
+  for(int i = 0;i < len;i++){
+    pte = walk(pagetable, base, 0);
+    // page has been accessed
+    if((*pte & PTE_A) != 0){
+      buf = buf | (1L << i);
+      // reset PTE_A
+      *pte &= ~PTE_A;
+    }
+    base += PGSIZE;
+  }
+
+  // return 0 on success, -1 on error
+  return copyout(pagetable, mask, (char*)&buf, sizeof(buf));
 }
 #endif
 
