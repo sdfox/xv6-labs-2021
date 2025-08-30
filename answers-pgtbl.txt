@@ -1,0 +1,9 @@
+Q1: Which other xv6 system call(s) could be made faster using this shared page? Explain how.
+A1: fstat. kernel can share file data with process using shared pages.
+System calls that don't need privileged instructions or security insensitive can speed up by using shared page.
+
+Q2: Explain the output of vmprint in terms of Fig 3-4 from the text. What does page 0 contain? What is in page 2? When running in user mode, could the process read/write the memory mapped by page 1? What does the third to last page contain?
+A2: Page 0 contains text, which is the code that this process will execute(kernel/exec.c).
+Page 2 is user stack.
+Page 1 is a guard page for stack page, so it can't be read/written by process.
+The third to last page are: shared page, trapframe page and trampoline page. We can identify them based on their permissions(RU/RW/RX).
