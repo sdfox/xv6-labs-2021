@@ -67,6 +67,52 @@ usertrap(void)
     syscall();
   } else if((which_dev = devintr()) != 0){
     // ok
+    if(which_dev == 2 && p->ticks != 0){
+      if(p->passed_ticks + 1 == p->ticks && p->upcall_lock == 0){
+        // set sign
+        p->upcall_lock = 1;
+        // save the status of trapframe
+        p->upcall_reserve_trapframe.kernel_satp = p->trapframe->kernel_satp;
+        p->upcall_reserve_trapframe.kernel_sp = p->trapframe->kernel_sp;
+        p->upcall_reserve_trapframe.kernel_trap = p->trapframe->kernel_trap;
+        p->upcall_reserve_trapframe.epc = p->trapframe->epc;
+        p->upcall_reserve_trapframe.kernel_hartid = p->trapframe->kernel_hartid;
+        p->upcall_reserve_trapframe.ra = p->trapframe->ra;
+        p->upcall_reserve_trapframe.sp = p->trapframe->sp;
+        p->upcall_reserve_trapframe.gp = p->trapframe->gp;
+        p->upcall_reserve_trapframe.tp = p->trapframe->tp;
+        p->upcall_reserve_trapframe.t0 = p->trapframe->t0;
+        p->upcall_reserve_trapframe.t1 = p->trapframe->t1;
+        p->upcall_reserve_trapframe.t2 = p->trapframe->t2;
+        p->upcall_reserve_trapframe.s0 = p->trapframe->s0;
+        p->upcall_reserve_trapframe.s1 = p->trapframe->s1;
+        p->upcall_reserve_trapframe.a0 = p->trapframe->a0;
+        p->upcall_reserve_trapframe.a1 = p->trapframe->a1;
+        p->upcall_reserve_trapframe.a2 = p->trapframe->a2;
+        p->upcall_reserve_trapframe.a3 = p->trapframe->a3;
+        p->upcall_reserve_trapframe.a4 = p->trapframe->a4;
+        p->upcall_reserve_trapframe.a5 = p->trapframe->a5;
+        p->upcall_reserve_trapframe.a6 = p->trapframe->a6;
+        p->upcall_reserve_trapframe.a7 = p->trapframe->a7;
+        p->upcall_reserve_trapframe.s2 = p->trapframe->s2;
+        p->upcall_reserve_trapframe.s3 = p->trapframe->s3;
+        p->upcall_reserve_trapframe.s4 = p->trapframe->s4;
+        p->upcall_reserve_trapframe.s5 = p->trapframe->s5;
+        p->upcall_reserve_trapframe.s6 = p->trapframe->s6;
+        p->upcall_reserve_trapframe.s7 = p->trapframe->s7;
+        p->upcall_reserve_trapframe.s8 = p->trapframe->s8;
+        p->upcall_reserve_trapframe.s9 = p->trapframe->s9;
+        p->upcall_reserve_trapframe.s10 = p->trapframe->s10;
+        p->upcall_reserve_trapframe.s11 = p->trapframe->s11;
+        p->upcall_reserve_trapframe.t3 = p->trapframe->t3;
+        p->upcall_reserve_trapframe.t4 = p->trapframe->t4;
+        p->upcall_reserve_trapframe.t5 = p->trapframe->t5;
+        p->upcall_reserve_trapframe.t6 = p->trapframe->t6;
+        // set epc
+	p->trapframe->epc = (uint64)p->handler;
+      }
+      p->passed_ticks = (p->passed_ticks + 1) % p->ticks;
+    }
   } else {
     printf("usertrap(): unexpected scause %p pid=%d\n", r_scause(), p->pid);
     printf("            sepc=%p stval=%p\n", r_sepc(), r_stval());
