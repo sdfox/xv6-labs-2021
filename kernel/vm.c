@@ -303,7 +303,6 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
   pte_t *pte;
   uint64 pa, i;
   uint flags;
-  char *mem;
 
   for(i = 0; i < sz; i += PGSIZE){
     if((pte = walk(old, i, 0)) == 0)
@@ -311,14 +310,29 @@ uvmcopy(pagetable_t old, pagetable_t new, uint64 sz)
     if((*pte & PTE_V) == 0)
       panic("uvmcopy: page not present");
     pa = PTE2PA(*pte);
+
+    // Clear PTE_W, install PTE_C
+    *pte &= (~PTE_W);
+    *pte |= PTE_C;
     flags = PTE_FLAGS(*pte);
-    if((mem = kalloc()) == 0)
+
+    // flags = PTE_FLAGS(*pte);
+    // flags &= (~PTE_W);
+    // flags |= PTE_C;
+
+    // remap old page with new flag
+    /*
+    uvmunmap(old, i, 1, 0);
+    if(mappages(old, i, PGSIZE, (uint64)pa, flags) != 0){
       goto err;
-    memmove(mem, (char*)pa, PGSIZE);
-    if(mappages(new, i, PGSIZE, (uint64)mem, flags) != 0){
-      kfree(mem);
+    }*/
+
+    // map new page with the same physical address of old memory
+    if(mappages(new, i, PGSIZE, (uint64)pa, flags) != 0){
       goto err;
     }
+    // increase ref
+    ref_inc((void *)pa);
   }
   return 0;
 
@@ -350,6 +364,11 @@ copyout(pagetable_t pagetable, uint64 dstva, char *src, uint64 len)
 
   while(len > 0){
     va0 = PGROUNDDOWN(dstva);
+    // cow page
+    if(iscowpage(pagetable, va0)){
+      if(cow(pagetable, va0) < 0)
+        return -1;
+    }
     pa0 = walkaddr(pagetable, va0);
     if(pa0 == 0)
       return -1;
@@ -431,4 +450,51 @@ copyinstr(pagetable_t pagetable, char *dst, uint64 srcva, uint64 max)
   } else {
     return -1;
   }
+}
+
+int iscowpage(pagetable_t pagetable, uint64 va)
+{
+  // Must be a valid va, otherwise the walk() function will panic
+  if(va >= MAXVA || va < 0)
+    return 0;
+  pte_t *pte = walk(pagetable, va, 0);
+  if(pte == 0)
+    return 0;
+  if((*pte & PTE_V) == 0)
+    return 0;
+  if((*pte & PTE_U) == 0)
+    return 0;
+  if((*pte & PTE_C) == 0)
+    return 0;
+  else return 1;
+}
+
+int cow(pagetable_t pagetable, uint64 va)
+{
+  pte_t *pte;
+  uint64 pa;
+  uint flags;
+  char *mem;
+
+  if(va % PGSIZE != 0)
+    return -1;
+  if (va >= MAXVA)
+    return -1;
+  if(!iscowpage(pagetable, va))
+    return -1;
+  if((pte = walk(pagetable, va, 0)) == 0)
+    return -1;
+  if((*pte & PTE_V) == 0)
+    return -1;
+
+  pa = PTE2PA(*pte);
+  flags = PTE_FLAGS(*pte);
+  flags |= PTE_W;
+  flags &= ~PTE_C;
+  if((mem = kalloc()) == 0)
+    return -1;
+  memmove(mem, (char*)pa, PGSIZE);
+  uvmunmap(pagetable, va, 1, 1); // Note that the old page should be retrieve! So do_free must be set to 1.
+  mappages(pagetable, va, PGSIZE, (uint64)mem, flags);
+  return 0;
 }
